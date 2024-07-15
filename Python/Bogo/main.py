@@ -7,6 +7,13 @@ from discord.ext import commands, tasks
 from openai import OpenAI
 from rich import print
 
+
+def clear_console():
+    os.system("cls" if os.name == "nt" else "clear")
+
+
+clear_console()
+
 # Get Discord bot token and OpenAI API key from environment variable
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
