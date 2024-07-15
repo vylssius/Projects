@@ -1,0 +1,8 @@
+A terminal based trivia game that uses openai to generate the questions.
+
+1) boot up game, open ai generates a question, sends question to elevenlabs api for voice synthesis, plays question
+2) user types in answer, openai checks answer, sends response to elevenlabs api for voice synthesis, plays answer
+3) will specify to openai that its response to the answer MUST start with either "Correct" or "Incorrect"
+4) use programming magic to find out if the first word in the response is "Correct" or "Incorrect"
+5) if correct, increment score, if incorrect, reset score (fail game)
+
