@@ -3,9 +3,7 @@ import discord
 import logging
 import colorlog
 import asyncio
-import keyboard
-import pydub
-from discord.ext import commands
+from discord.ext import commands, tasks
 from openai import OpenAI
 from rich import print
 
@@ -16,6 +14,7 @@ BOGO_CHANNEL_ID = 1262153225671282779
 GPT_MODEL = "gpt-3.5-turbo"
 MAX_REQUESTS = 5
 MINUTE = 60
+PEOPLE_IN_VOICE = []
 
 if DISCORD_BOT_TOKEN is None:
     raise ValueError(
@@ -128,21 +127,39 @@ intents.message_content = True
 intents.messages = True
 intents.guilds = True
 intents.dm_messages = True
+intents.members = True
 
 # Set up the bot with the appropriate command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-@bot.event
-async def on_ready():
-    logger.info("Bogo logged in")
-    await load_chat_history()
-    await backup_chat_history()
-
-
 ############################################################################################################
 #                                               BOT COMMANDS                                               #
 ############################################################################################################
+
+
+@tasks.loop(seconds=1)
+async def check_voice_channels():
+    for guild in bot.guilds:
+        for member in guild.members:
+            if member.voice and member.voice.channel:
+                if member.name not in PEOPLE_IN_VOICE:
+                    PEOPLE_IN_VOICE.append(member.name)
+                # Check to see if a member that has been logged in the list has left the voice channel, if so remove them from the list
+                for person in PEOPLE_IN_VOICE:
+                    if person not in [
+                        member.name
+                        for member in member.voice.channel.members  # type: ignore
+                    ]:
+                        PEOPLE_IN_VOICE.remove(person)
+
+
+@bot.event
+async def on_ready():
+    logger.info("Bogo logged in")
+    check_voice_channels.start()
+    await load_chat_history()
+    await backup_chat_history()
 
 
 @bot.command()
