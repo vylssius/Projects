@@ -71,13 +71,13 @@ class RateLimiter:
 
     async def make_request(self):
         if self.request_count < MAX_REQUESTS:
-            print("Making request to OpenAI")
+            logger.warning("Making request to OpenAI")
             self.request_count += 1
         else:
-            print("Rate limit reached. Waiting 1 minute.")
+            logger.warning("Rate limit reached. Waiting 1 minute.")
             await asyncio.sleep(MINUTE)
             self.request_count = 0
-            print("Rate limit reset. Resuming requests.")
+            logger.warning("Rate limit reset. Resuming requests.")
 
 
 limiter = RateLimiter()
@@ -90,10 +90,9 @@ limiter = RateLimiter()
 # Save chat_history list to a file every 5 minutes as a backup
 async def backup_chat_history():
     while True:
-        await asyncio.sleep(5 * MINUTE)
         with open("chat_history.txt", "w") as file:
             file.write(str(chat_history))
-            logger.warning("Chat history backed up to file.")
+        await asyncio.sleep(MINUTE)
 
 
 # Load chat_history.txt file if it exists and append it to chat_history list
@@ -166,7 +165,7 @@ async def bogo(ctx, *, question):
     # logs question to terminal
     logger.debug(f"{ctx.author}: {question}")
     # Appends question to chat history
-    chat_history.append({"role": ctx.author.name, "content": question})
+    chat_history.append({"role": "user", "content": ctx.author.name + ": " + question})
 
     try:
         response = client.chat.completions.create(
