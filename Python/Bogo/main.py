@@ -8,6 +8,10 @@ from discord.ext import commands
 from openai import OpenAI
 from eleven_labs import ElevenLabsManager
 
+# TODO:
+# 1) Fix bogospeak queue issue.
+# 2) Make bot send message when rate limit is reached. DONE.
+
 
 def clear_console():
     os.system("cls" if os.name == "nt" else "clear")
@@ -78,18 +82,23 @@ logger.addHandler(handler)
 class RateLimiter:
     def __init__(self):
         self.request_count = 0
+        self.rate_limit_message_sent = False
 
-    async def make_request(self):
+    async def make_request(self, ctx):
         if self.request_count < MAX_REQUESTS:
             logger.warning("Making request to OpenAI")
             self.request_count += 1
+            self.rate_limit_message_sent = False
         else:
+            if not self.rate_limit_message_sent:
+                await ctx.send(
+                    "Woah, that's a lot of questions! Give me a minute to catch up."
+                )
+                self.rate_limit_message_sent = True
             logger.warning("Rate limit reached. Waiting 1 minute.")
-            RATE_LIMITED = True
             await asyncio.sleep(MINUTE)
             self.request_count = 0
             logger.warning("Rate limit reset. Resuming requests.")
-            RATE_LIMITED = False
 
 
 limiter = RateLimiter()
@@ -158,7 +167,7 @@ async def on_ready():
 async def bogotext(ctx, *, question):
     # Add request to the queue
     await bogotext_queue.put((ctx, question))
-    logger.debug(f"Added to queue: {question}")
+    logger.warning(f"Added to queue: {question}")
 
     global is_text_worker_active
     # Start processing the queue if the worker is not active
@@ -171,14 +180,10 @@ async def process_bogotext_queue():
     global is_text_worker_active
     while not bogotext_queue.empty():
         ctx, question = await bogotext_queue.get()
-        logger.debug(f"Processing from queue: {question}")
+        logger.warning(f"Processing from queue: {question}")
         try:
             # Check rate limit before making request
-            await limiter.make_request()
-            if RATE_LIMITED:
-                await ctx.send(
-                    "Woah, that's a lot of questions! Give me a minute to catch up."
-                )
+            await limiter.make_request(ctx)
 
             # logs question to terminal
             logger.debug(f"{ctx.author}: {question}")
@@ -213,7 +218,7 @@ async def process_bogotext_queue():
 async def bogospeak(ctx, *, speechquestion):
     # Add request to the queue
     await bogospeak_queue.put((ctx, speechquestion))
-    logger.debug(f"Added to queue: {speechquestion}")
+    logger.warning(f"Added to queue: {speechquestion}")
 
     global is_speech_worker_active
     # Start processing the queue if the worker is not active
@@ -223,9 +228,10 @@ async def bogospeak(ctx, *, speechquestion):
 
 
 async def process_bogospeak_queue():
+    global is_speech_worker_active
     while not bogospeak_queue.empty():
         ctx, speechquestion = await bogospeak_queue.get()
-        logger.debug(f"Processing from queue: {speechquestion}")
+        logger.warning(f"Processing from queue: {speechquestion}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
                 logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
@@ -234,11 +240,7 @@ async def process_bogospeak_queue():
 
                 # Check rate limit before making request
                 logger.warning("Checking rate limit...")
-                await limiter.make_request()
-                if RATE_LIMITED:
-                    await ctx.send(
-                        "Woah, that's a lot of questions! Give me a minute to catch up."
-                    )
+                await limiter.make_request(ctx)
 
                 if voice_client:
                     # already in voice channel
