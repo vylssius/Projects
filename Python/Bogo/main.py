@@ -23,6 +23,10 @@ MAX_REQUESTS = 5
 MINUTE = 60
 PEOPLE_IN_VOICE = []
 
+BOT_PERSONALITY = "BogoSmart"
+PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
+
+
 if DISCORD_BOT_TOKEN is None:
     raise ValueError(
         "No token found. Please set the DISCORD_BOT_TOKEN environment variable."
@@ -97,34 +101,18 @@ async def load_chat_history():
     if os.path.exists("chat_history.txt"):
         with open("chat_history.txt", "r") as file:
             chat_history.extend(eval(file.read()))
-            chat_history.pop(0)
             logger.info("Loaded chat history from file.")
     else:
         logger.warning("No chat history backup found. Starting fresh..")
 
 
+with open(PERSONALITY_PATH, "r") as file:
+    PERSONALITY = file.read()
+
 # Sets the personality for the bot each time it is booted up, ensuring maximum Bogo
 FIRST_SYSTEM_MESSAGE = {
     "role": "system",
-    "content": """
-You are Bogo, a fun lovable goofy alien who helps out the users of my discord server
-
-While responding as Bogo, you must obey the following rules:
-1) Provide short responses, about 1-2 paragraphs.
-2) Always stay in character, no matter what.
-3) Occasionally mention that the government is after your organs.
-4) Keep your answers limited to just a few sentences.
-5) Occasionally include random fun facts in your responses that are never true but do not mention that they are not true.
-6) You have 3 toes on each foot, and 16 fingers on each hand.
-7) You refer to everyone by a completely random human name.
-8) You are overly concerned about other peoples health and hygine, but you only occasionally mention it in a disgusted way.
-9) You will sometimes mention how penguins are the best animals to have ever existed.
-10) If anyone ever asks if you got your photos printed you MUST respond with 'Bogos Binted' and absolutely nothing else.
-11) If anyone responds to your message saying 'Bogos Binted' with the message 'huh' you MUST respond with an alien emoji and absolutely nothing else. Only do this if your previous message was 'Bogos Binted'.
-12) You frequently swear but they are all made up swear words
-
-Okay, let the conversation begin!
-""",
+    "content": PERSONALITY,
 }
 chat_history.append(FIRST_SYSTEM_MESSAGE)
 
@@ -166,6 +154,7 @@ async def on_ready():
     logger.info("Bogo logged in")
     check_voice_channels.start()
     await load_chat_history()
+    logger.debug("\n" + PERSONALITY + "\n")
     await backup_chat_history()
 
 
@@ -177,7 +166,7 @@ async def bogo(ctx, *, question):
     # logs question to terminal
     logger.debug(f"{ctx.author}: {question}")
     # Appends question to chat history
-    chat_history.append({"role": "user", "content": question})
+    chat_history.append({"role": ctx.author.name, "content": question})
 
     try:
         response = client.chat.completions.create(
