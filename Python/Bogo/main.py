@@ -3,9 +3,8 @@ import discord
 import logging
 import colorlog
 import asyncio
-import pydub
 
-from discord.ext import commands, tasks
+from discord.ext import commands
 from openai import OpenAI
 from eleven_labs import ElevenLabsManager
 
@@ -23,10 +22,9 @@ BOGO_CHANNEL_ID = 1262153225671282779
 GPT_MODEL = "gpt-3.5-turbo"
 MAX_REQUESTS = 5
 MINUTE = 60
-PEOPLE_IN_VOICE = []
 
 BOT_PERSONALITY = "BogoSmart"
-ELEVENLABS_VOICE = "Sheogorath"
+ELEVENLABS_VOICE = "Bogo"
 PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
 
 
@@ -98,7 +96,7 @@ async def backup_chat_history():
     while True:
         with open("chat_history.txt", "w") as file:
             file.write(str(chat_history))
-        await asyncio.sleep(MINUTE)
+        await asyncio.sleep(1)
 
 
 # Load chat_history.txt file if it exists and append it to chat_history list
@@ -106,6 +104,7 @@ async def load_chat_history():
     if os.path.exists("chat_history.txt"):
         with open("chat_history.txt", "r") as file:
             chat_history.extend(eval(file.read()))
+            chat_history.pop(0)
             logger.info("Loaded chat history from file.")
     else:
         logger.warning("No chat history backup found. Starting fresh..")
@@ -139,26 +138,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 ############################################################################################################
 
 
-@tasks.loop(seconds=1)
-async def check_voice_channels():
-    for guild in bot.guilds:
-        for member in guild.members:
-            if member.voice and member.voice.channel:
-                if member.name not in PEOPLE_IN_VOICE:
-                    PEOPLE_IN_VOICE.append(member.name)
-                # Check to see if a member that has been logged in the list has left the voice channel, if so remove them from the list
-                for person in PEOPLE_IN_VOICE:
-                    if person not in [
-                        member.name
-                        for member in member.voice.channel.members  # type: ignore
-                    ]:
-                        PEOPLE_IN_VOICE.remove(person)
-
-
 @bot.event
 async def on_ready():
     logger.info("Bogo logged in")
-    check_voice_channels.start()
     await load_chat_history()
     logger.debug("\n" + PERSONALITY + "\n")
     await backup_chat_history()
@@ -202,50 +184,64 @@ async def bogo(ctx, *, question):
 async def bogospeak(ctx, *, speechquestion):
     if ctx.author.voice and ctx.author.voice.channel:
         logger.info(f"{ctx.author} is in a voice channel, proceeding...")
+        channel = ctx.author.voice.channel
+        voice_client = ctx.guild.voice_client
         # Check rate limit before making request
         logger.warning("Checking rate limit...")
         await limiter.make_request()
 
-        # logs question to terminal
-        logger.debug(f"{ctx.author}: {speechquestion}")
+        if voice_client:
+            # already in voice channel
+            if voice_client.channel == channel:
+                pass
+            else:
+                await voice_client.disconnect()
 
-        try:
-            channel = ctx.author.voice.channel
-            voice_client = await channel.connect()
+        else:
+            # not in voice channel
+            print("Join voice channel")
 
-            # Appends question to chat history
-            chat_history.append(
-                {"role": "user", "content": ctx.author.name + ": " + speechquestion}
-            )
-            speechresponse = client.chat.completions.create(
-                model=GPT_MODEL,
-                messages=chat_history,
-            )
-            chat_history.append(
-                {
-                    "role": speechresponse.choices[0].message.role,
-                    "content": speechresponse.choices[0].message.content,
-                }
-            )
+            # logs question to terminal
+            logger.debug(f"{ctx.author}: {speechquestion}")
 
-            speechanswer = speechresponse.choices[0].message.content
+            try:
+                # Appends question to chat history
+                chat_history.append(
+                    {
+                        "role": "user",
+                        "content": ctx.author.name + ": " + speechquestion,
+                    },
+                )
+                speechresponse = client.chat.completions.create(
+                    model=GPT_MODEL,
+                    messages=chat_history,
+                )
+                chat_history.append(
+                    {
+                        "role": speechresponse.choices[0].message.role,
+                        "content": speechresponse.choices[0].message.content,
+                    }
+                )
 
-            elevenlabs_output = elevenlabs_manager.text_to_audio(
-                speechanswer, ELEVENLABS_VOICE, False
-            )
-            audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
-            voice_client.play(audio_source)
+                speechanswer = speechresponse.choices[0].message.content
 
-            while voice_client.is_playing():
-                await asyncio.sleep(1)
+                elevenlabs_output = elevenlabs_manager.text_to_audio(
+                    speechanswer, ELEVENLABS_VOICE, False
+                )
+                audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+                voice_client_bot = await channel.connect()
+                voice_client_bot.play(audio_source)
 
-            await voice_client.disconnect()
+                while voice_client_bot.is_playing():
+                    await asyncio.sleep(1)
 
-            os.remove(elevenlabs_output)
+                await voice_client_bot.disconnect()
 
-        except Exception as e:
-            logger.critical(f"Error: {e}")
-            await ctx.send(f"An error occurred: {e}")
+                os.remove(elevenlabs_output)
+
+            except Exception as e:
+                logger.critical(f"Error: {e}")
+                await ctx.send(f"An error occurred: {e}")
     else:
         await ctx.send("You need to be in a voice chat to speak to me!")
 
