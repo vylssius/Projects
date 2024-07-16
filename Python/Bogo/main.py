@@ -8,10 +8,6 @@ from discord.ext import commands
 from openai import OpenAI
 from eleven_labs import ElevenLabsManager
 
-# TODO:
-# 1) Fix bogospeak queue issue.
-# 2) Make bot send message when rate limit is reached. DONE.
-
 
 def clear_console():
     os.system("cls" if os.name == "nt" else "clear")
