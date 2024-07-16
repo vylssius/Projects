@@ -2,6 +2,8 @@ import os
 from rich import print
 from openai import OpenAI
 
+os.system("cls" if os.name == "nt" else "clear")
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 CHAT_HISTORY = []

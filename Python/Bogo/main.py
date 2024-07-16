@@ -3,9 +3,11 @@ import discord
 import logging
 import colorlog
 import asyncio
+import pydub
+
 from discord.ext import commands, tasks
 from openai import OpenAI
-from rich import print
+from eleven_labs import ElevenLabsManager
 
 
 def clear_console():
@@ -24,6 +26,7 @@ MINUTE = 60
 PEOPLE_IN_VOICE = []
 
 BOT_PERSONALITY = "BogoSmart"
+ELEVENLABS_VOICE = "Sheogorath"
 PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
 
 
@@ -39,6 +42,9 @@ if OPENAI_API_KEY is None:
 
 # Set OpenAI api key
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+# Eleven Labs Manager
+elevenlabs_manager = ElevenLabsManager()
 
 # Ensures the bot has a "Brain" and remembers previous chat history
 chat_history = []
@@ -122,6 +128,7 @@ intents.messages = True
 intents.guilds = True
 intents.dm_messages = True
 intents.members = True
+intents.voice_states = True
 
 # Set up the bot with the appropriate command prefix and intents
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -162,12 +169,15 @@ async def bogo(ctx, *, question):
     # Check rate limit before making request
     logger.warning("Checking rate limit...")
     await limiter.make_request()
+
     # logs question to terminal
     logger.debug(f"{ctx.author}: {question}")
-    # Appends question to chat history
-    chat_history.append({"role": "user", "content": ctx.author.name + ": " + question})
 
     try:
+        # Appends question to chat history
+        chat_history.append(
+            {"role": "user", "content": ctx.author.name + ": " + question}
+        )
         response = client.chat.completions.create(
             model=GPT_MODEL,
             messages=chat_history,
@@ -185,6 +195,59 @@ async def bogo(ctx, *, question):
     except Exception as e:
         logger.critical(f"Error: {e}")
         await ctx.send(f"An error occurred: {e}")
+
+
+################################################# IN DEVELOPMENT ################################################
+@bot.command()
+async def bogospeak(ctx, *, speechquestion):
+    if ctx.author.voice and ctx.author.voice.channel:
+        logger.info(f"{ctx.author} is in a voice channel, proceeding...")
+        # Check rate limit before making request
+        logger.warning("Checking rate limit...")
+        await limiter.make_request()
+
+        # logs question to terminal
+        logger.debug(f"{ctx.author}: {speechquestion}")
+
+        try:
+            channel = ctx.author.voice.channel
+            voice_client = await channel.connect()
+
+            # Appends question to chat history
+            chat_history.append(
+                {"role": "user", "content": ctx.author.name + ": " + speechquestion}
+            )
+            speechresponse = client.chat.completions.create(
+                model=GPT_MODEL,
+                messages=chat_history,
+            )
+            chat_history.append(
+                {
+                    "role": speechresponse.choices[0].message.role,
+                    "content": speechresponse.choices[0].message.content,
+                }
+            )
+
+            speechanswer = speechresponse.choices[0].message.content
+
+            elevenlabs_output = elevenlabs_manager.text_to_audio(
+                speechanswer, ELEVENLABS_VOICE, False
+            )
+            audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+            voice_client.play(audio_source)
+
+            while voice_client.is_playing():
+                await asyncio.sleep(1)
+
+            await voice_client.disconnect()
+
+            os.remove(elevenlabs_output)
+
+        except Exception as e:
+            logger.critical(f"Error: {e}")
+            await ctx.send(f"An error occurred: {e}")
+    else:
+        await ctx.send("You need to be in a voice chat to speak to me!")
 
 
 @bot.event
