@@ -23,10 +23,15 @@ GPT_MODEL = "gpt-3.5-turbo"
 MAX_REQUESTS = 5
 MINUTE = 60
 RATE_LIMITED = False
+is_speech_worker_active = False
+is_text_worker_active = False
 
 BOT_PERSONALITY = "BogoSmart"
 ELEVENLABS_VOICE = "Bogo"
 PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
+
+bogospeak_queue = asyncio.Queue()
+bogotext_queue = asyncio.Queue()
 
 
 if DISCORD_BOT_TOKEN is None:
@@ -150,114 +155,151 @@ async def on_ready():
 
 
 @bot.command()
-async def bogo(ctx, *, question):
-    # Check rate limit before making request
-    logger.warning("Checking rate limit...")
-    await limiter.make_request()
-    if RATE_LIMITED:
-        await ctx.send("Woah, that's a lot of questions! Give me a minute to catch up.")
+async def bogotext(ctx, *, question):
+    # Add request to the queue
+    await bogotext_queue.put((ctx, question))
+    logger.debug(f"Added to queue: {question}")
 
-    # logs question to terminal
-    logger.debug(f"{ctx.author}: {question}")
-
-    try:
-        # Appends question to chat history
-        chat_history.append(
-            {"role": "user", "content": ctx.author.name + ": " + question}
-        )
-        response = client.chat.completions.create(
-            model=GPT_MODEL,
-            messages=chat_history,
-        )
-        chat_history.append(
-            {
-                "role": response.choices[0].message.role,
-                "content": response.choices[0].message.content,
-            }
-        )
-        answer = response.choices[0].message.content
-        logger.debug(f"Bogo: {answer}")
-        await ctx.send(f"{ctx.author.mention} {answer}")
-
-    except Exception as e:
-        logger.critical(f"Error: {e}")
-        await ctx.send(f"An error occurred: {e}")
+    global is_text_worker_active
+    # Start processing the queue if the worker is not active
+    if not is_text_worker_active:
+        is_text_worker_active = True
+        await process_bogotext_queue()
 
 
-# TODO:
-# 1) make a limit of one request at a time.
-# 2) send a message when rate limit reached so people dont think he got dragged out back
+async def process_bogotext_queue():
+    global is_text_worker_active
+    while not bogotext_queue.empty():
+        ctx, question = await bogotext_queue.get()
+        logger.debug(f"Processing from queue: {question}")
+        try:
+            # Check rate limit before making request
+            await limiter.make_request()
+            if RATE_LIMITED:
+                await ctx.send(
+                    "Woah, that's a lot of questions! Give me a minute to catch up."
+                )
+
+            # logs question to terminal
+            logger.debug(f"{ctx.author}: {question}")
+
+            # Process the question
+            chat_history.append(
+                {"role": "user", "content": f"{ctx.author.name}: {question}"}
+            )
+            response = client.chat.completions.create(
+                model=GPT_MODEL, messages=chat_history
+            )
+            chat_history.append(
+                {
+                    "role": response.choices[0].message.role,
+                    "content": response.choices[0].message.content,
+                }
+            )
+            answer = response.choices[0].message.content
+            logger.debug(f"Bogo: {answer}")
+            await ctx.send(f"{ctx.author.mention} {answer}")
+        except Exception as e:
+            logger.critical(f"Error in queue processing: {e}")
+            await ctx.send(f"An error occurred: {e}")
+        finally:
+            bogotext_queue.task_done()
+            logger.debug("Finished processing and marked the queue task as done.")
+    is_text_worker_active = False
+    logger.debug("Queue is empty, marking text worker as inactive.")
 
 
 @bot.command()
 async def bogospeak(ctx, *, speechquestion):
-    if ctx.author.voice and ctx.author.voice.channel:
-        logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
-        channel = ctx.author.voice.channel
-        voice_client = ctx.guild.voice_client
-        # Check rate limit before making request
-        logger.warning("Checking rate limit...")
-        await limiter.make_request()
-        if RATE_LIMITED:
-            await ctx.send(
-                "Woah, that's a lot of questions! Give me a minute to catch up."
-            )
+    # Add request to the queue
+    await bogospeak_queue.put((ctx, speechquestion))
+    logger.debug(f"Added to queue: {speechquestion}")
 
-        if voice_client:
-            # already in voice channel
-            if voice_client.channel == channel:
-                pass
+    global is_speech_worker_active
+    # Start processing the queue if the worker is not active
+    if not is_speech_worker_active:
+        is_speech_worker_active = True
+        await process_bogospeak_queue()
+
+
+async def process_bogospeak_queue():
+    while not bogospeak_queue.empty():
+        ctx, speechquestion = await bogospeak_queue.get()
+        logger.debug(f"Processing from queue: {speechquestion}")
+        try:
+            if ctx.author.voice and ctx.author.voice.channel:
+                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                channel = ctx.author.voice.channel
+                voice_client = ctx.guild.voice_client
+
+                # Check rate limit before making request
+                logger.warning("Checking rate limit...")
+                await limiter.make_request()
+                if RATE_LIMITED:
+                    await ctx.send(
+                        "Woah, that's a lot of questions! Give me a minute to catch up."
+                    )
+
+                if voice_client:
+                    # already in voice channel
+                    if voice_client.channel != channel:
+                        await voice_client.disconnect()
+                else:
+                    # not in voice channel
+                    logger.warning("Joining voice channel...")
+
+                    # logs question to terminal
+                    logger.debug(f"{ctx.author}: {speechquestion}")
+
+                    try:
+                        # Appends question to chat history
+                        chat_history.append(
+                            {
+                                "role": "user",
+                                "content": ctx.author.name + ": " + speechquestion,
+                            },
+                        )
+                        speechresponse = client.chat.completions.create(
+                            model=GPT_MODEL,
+                            messages=chat_history,
+                        )
+                        chat_history.append(
+                            {
+                                "role": speechresponse.choices[0].message.role,
+                                "content": speechresponse.choices[0].message.content,
+                            }
+                        )
+
+                        speechanswer = speechresponse.choices[0].message.content
+                        logger.debug(f"Bogo: {speechanswer}")
+
+                        elevenlabs_output = elevenlabs_manager.text_to_audio(
+                            speechanswer, ELEVENLABS_VOICE, False
+                        )
+                        audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+                        voice_client_bot = await channel.connect()
+                        voice_client_bot.play(audio_source)
+
+                        while voice_client_bot.is_playing():
+                            await asyncio.sleep(1)
+
+                        await voice_client_bot.disconnect()
+
+                        os.remove(elevenlabs_output)
+
+                    except Exception as e:
+                        logger.critical(f"Error: {e}")
+                        await ctx.send(f"An error occurred: {e}")
             else:
-                await voice_client.disconnect()
-
-        else:
-            # not in voice channel
-            logger.warning("Joining voice channel...")
-
-            # logs question to terminal
-            logger.debug(f"{ctx.author}: {speechquestion}")
-
-            try:
-                # Appends question to chat history
-                chat_history.append(
-                    {
-                        "role": "user",
-                        "content": ctx.author.name + ": " + speechquestion,
-                    },
-                )
-                speechresponse = client.chat.completions.create(
-                    model=GPT_MODEL,
-                    messages=chat_history,
-                )
-                chat_history.append(
-                    {
-                        "role": speechresponse.choices[0].message.role,
-                        "content": speechresponse.choices[0].message.content,
-                    }
-                )
-
-                speechanswer = speechresponse.choices[0].message.content
-                logger.debug(f"Bogo: {speechanswer}")
-
-                elevenlabs_output = elevenlabs_manager.text_to_audio(
-                    speechanswer, ELEVENLABS_VOICE, False
-                )
-                audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
-                voice_client_bot = await channel.connect()
-                voice_client_bot.play(audio_source)
-
-                while voice_client_bot.is_playing():
-                    await asyncio.sleep(1)
-
-                await voice_client_bot.disconnect()
-
-                os.remove(elevenlabs_output)
-
-            except Exception as e:
-                logger.critical(f"Error: {e}")
-                await ctx.send(f"An error occurred: {e}")
-    else:
-        await ctx.send("You need to be in a voice chat to speak to me!")
+                await ctx.send("You need to be in a voice chat to speak to me!")
+        except Exception as e:
+            logger.critical(f"Error in queue processing: {e}")
+            await ctx.send(f"An error occurred: {e}")
+        finally:
+            bogospeak_queue.task_done()
+            logger.debug("Finished processing and marked the queue task as done.")
+    is_speech_worker_active = False
+    logger.debug("Queue is empty, marking speech worker as inactive.")
 
 
 @bot.event
