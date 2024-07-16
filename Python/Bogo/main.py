@@ -22,6 +22,7 @@ BOGO_CHANNEL_ID = 1262153225671282779
 GPT_MODEL = "gpt-3.5-turbo"
 MAX_REQUESTS = 5
 MINUTE = 60
+RATE_LIMITED = False
 
 BOT_PERSONALITY = "BogoSmart"
 ELEVENLABS_VOICE = "Bogo"
@@ -79,9 +80,11 @@ class RateLimiter:
             self.request_count += 1
         else:
             logger.warning("Rate limit reached. Waiting 1 minute.")
+            RATE_LIMITED = True
             await asyncio.sleep(MINUTE)
             self.request_count = 0
             logger.warning("Rate limit reset. Resuming requests.")
+            RATE_LIMITED = False
 
 
 limiter = RateLimiter()
@@ -151,6 +154,8 @@ async def bogo(ctx, *, question):
     # Check rate limit before making request
     logger.warning("Checking rate limit...")
     await limiter.make_request()
+    if RATE_LIMITED:
+        await ctx.send("Woah, that's a lot of questions! Give me a minute to catch up.")
 
     # logs question to terminal
     logger.debug(f"{ctx.author}: {question}")
@@ -179,16 +184,24 @@ async def bogo(ctx, *, question):
         await ctx.send(f"An error occurred: {e}")
 
 
-################################################# IN DEVELOPMENT ################################################
+# TODO:
+# 1) make a limit of one request at a time.
+# 2) send a message when rate limit reached so people dont think he got dragged out back
+
+
 @bot.command()
 async def bogospeak(ctx, *, speechquestion):
     if ctx.author.voice and ctx.author.voice.channel:
-        logger.info(f"{ctx.author} is in a voice channel, proceeding...")
+        logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
         channel = ctx.author.voice.channel
         voice_client = ctx.guild.voice_client
         # Check rate limit before making request
         logger.warning("Checking rate limit...")
         await limiter.make_request()
+        if RATE_LIMITED:
+            await ctx.send(
+                "Woah, that's a lot of questions! Give me a minute to catch up."
+            )
 
         if voice_client:
             # already in voice channel
@@ -199,7 +212,7 @@ async def bogospeak(ctx, *, speechquestion):
 
         else:
             # not in voice channel
-            print("Join voice channel")
+            logger.warning("Joining voice channel...")
 
             # logs question to terminal
             logger.debug(f"{ctx.author}: {speechquestion}")
@@ -224,6 +237,7 @@ async def bogospeak(ctx, *, speechquestion):
                 )
 
                 speechanswer = speechresponse.choices[0].message.content
+                logger.debug(f"Bogo: {speechanswer}")
 
                 elevenlabs_output = elevenlabs_manager.text_to_audio(
                     speechanswer, ELEVENLABS_VOICE, False
