@@ -15,7 +15,7 @@ class ElevenLabsManager:
     def __init__(self):
         # CALLING voices() IS NECESSARY TO INSTANTIATE 11LABS FOR SOME FUCKING REASON
         all_voices = client.voices.get_all()
-        print(f"\nAll ElevenLabs voices: \n{all_voices}\n")
+        # print(f"\nAll ElevenLabs voices: \n{all_voices}\n")
 
     # Convert text to speech, then save it to file. Returns the file path
     def text_to_audio(
@@ -28,7 +28,8 @@ class ElevenLabsManager:
             file_name = f"___Msg{str(hash(input_text))}.wav"
         else:
             file_name = f"___Msg{str(hash(input_text))}.mp3"
-        tts_file = os.path.join(os.path.abspath(os.curdir), subdirectory, file_name)
+        tts_file = os.path.join(os.path.abspath(
+            os.curdir), subdirectory, file_name)
         save(audio_saved, tts_file)
         return tts_file
 

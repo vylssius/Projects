@@ -20,13 +20,12 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BOGO_CHANNEL_ID = 1262153225671282779
 GPT_MODEL = "gpt-3.5-turbo"
-MAX_REQUESTS = 5
+MAX_REQUESTS = 10
 MINUTE = 60
-RATE_LIMITED = False
 is_speech_worker_active = False
 is_text_worker_active = False
 
-BOT_PERSONALITY = "BogoSmart"
+BOT_PERSONALITY = "Bogo"
 ELEVENLABS_VOICE = "Bogo"
 PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
 
@@ -204,8 +203,7 @@ async def process_bogotext_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogotext_queue.task_done()
-            logger.warning(
-                "Finished processing and marked the queue task as done.")
+            logger.warning("Finished processing and marked the queue task as done.")
     is_text_worker_active = False
     logger.warning("Queue is empty, marking text worker as inactive.")
 
@@ -230,8 +228,7 @@ async def process_bogospeak_queue():
         logger.warning(f"Processing from queue: {speechquestion}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(
-                    f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -275,8 +272,7 @@ async def process_bogospeak_queue():
                         elevenlabs_output = elevenlabs_manager.text_to_audio(
                             speechanswer, ELEVENLABS_VOICE, False
                         )
-                        audio_source = discord.FFmpegPCMAudio(
-                            elevenlabs_output)
+                        audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
                         voice_client_bot = await channel.connect()
                         voice_client_bot.play(audio_source)
 
@@ -297,8 +293,7 @@ async def process_bogospeak_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogospeak_queue.task_done()
-            logger.warning(
-                "Finished processing and marked the queue task as done.")
+            logger.warning("Finished processing and marked the queue task as done.")
     is_speech_worker_active = False
     logger.warning("Queue is empty, marking speech worker as inactive.")
 
