@@ -33,7 +33,6 @@ PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
 bogospeak_queue = asyncio.Queue()
 bogotext_queue = asyncio.Queue()
 
-
 if DISCORD_BOT_TOKEN is None:
     raise ValueError(
         "No token found. Please set the DISCORD_BOT_TOKEN environment variable."
@@ -126,7 +125,7 @@ async def load_chat_history():
 with open(PERSONALITY_PATH, "r") as file:
     PERSONALITY = file.read()
 
-# Sets the personality for the bot each time it is booted up, ensuring maximum Bogo
+# Sets the personality for the bot each time it is booted up
 FIRST_SYSTEM_MESSAGE = {
     "role": "system",
     "content": PERSONALITY,
@@ -205,7 +204,8 @@ async def process_bogotext_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogotext_queue.task_done()
-            logger.debug("Finished processing and marked the queue task as done.")
+            logger.debug(
+                "Finished processing and marked the queue task as done.")
     is_text_worker_active = False
     logger.debug("Queue is empty, marking text worker as inactive.")
 
@@ -230,7 +230,8 @@ async def process_bogospeak_queue():
         logger.warning(f"Processing from queue: {speechquestion}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(
+                    f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -274,7 +275,8 @@ async def process_bogospeak_queue():
                         elevenlabs_output = elevenlabs_manager.text_to_audio(
                             speechanswer, ELEVENLABS_VOICE, False
                         )
-                        audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+                        audio_source = discord.FFmpegPCMAudio(
+                            elevenlabs_output)
                         voice_client_bot = await channel.connect()
                         voice_client_bot.play(audio_source)
 
@@ -295,7 +297,8 @@ async def process_bogospeak_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogospeak_queue.task_done()
-            logger.debug("Finished processing and marked the queue task as done.")
+            logger.debug(
+                "Finished processing and marked the queue task as done.")
     is_speech_worker_active = False
     logger.debug("Queue is empty, marking speech worker as inactive.")
 
