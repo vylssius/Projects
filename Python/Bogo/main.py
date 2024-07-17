@@ -3,8 +3,10 @@ import discord
 import logging
 import colorlog
 import asyncio
+import yt_dlp as youtube_dl
 
 from discord.ext import commands
+from discord import FFmpegPCMAudio
 from openai import OpenAI
 from eleven_labs import ElevenLabsManager
 
@@ -22,15 +24,18 @@ BOGO_CHANNEL_ID = 1262153225671282779
 GPT_MODEL = "gpt-3.5-turbo"
 MAX_REQUESTS = 10
 MINUTE = 60
-is_speech_worker_active = False
-is_text_worker_active = False
-
 BOT_PERSONALITY = "Bogo"
 ELEVENLABS_VOICE = "Bogo"
 PERSONALITY_PATH = "Personalities/" + BOT_PERSONALITY + ".txt"
+VOLUME_LEVEL = 0.35 / 2
+
+is_speech_worker_active = False
+is_text_worker_active = False
+is_youtube_worker_active = False
 
 bogospeak_queue = asyncio.Queue()
 bogotext_queue = asyncio.Queue()
+bogoyoutube_queue = asyncio.Queue()
 
 if DISCORD_BOT_TOKEN is None:
     raise ValueError(
@@ -209,10 +214,103 @@ async def process_bogotext_queue():
 
 
 @bot.command()
+async def bogoyoutube(ctx, url: str):
+    # Add request to the queue
+    await bogoyoutube_queue.put((ctx, url))
+    logger.warning(f"Added to queue: {url}")
+
+    while is_speech_worker_active:
+        await asyncio.sleep(1)
+
+    global is_youtube_worker_active
+    # Start processing the queue if the worker is not active
+    if not is_youtube_worker_active:
+        is_youtube_worker_active = True
+        await process_bogoyoutube_queue()
+
+
+async def process_bogoyoutube_queue():
+    global is_youtube_worker_active
+    while not bogoyoutube_queue.empty():
+        ctx, url = await bogoyoutube_queue.get()
+        logger.warning(f"Processing from queue: {url}")
+        try:
+            if ctx.author.voice and ctx.author.voice.channel:
+                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                channel = ctx.author.voice.channel
+                voice_client = ctx.guild.voice_client
+
+                if voice_client:
+                    # already in voice channel
+                    if voice_client.channel != channel:
+                        await voice_client.disconnect()
+                else:
+                    try:
+                        ydl_opts = {
+                            "format": "bestaudio/best",
+                            "postprocessors": [
+                                {
+                                    "key": "FFmpegExtractAudio",
+                                    "preferredcodec": "mp3",
+                                    "preferredquality": "192",
+                                }
+                            ],
+                            "outtmpl": "%(title)s.%(ext)s",
+                        }
+
+                        def transform(volume):
+                            def volume_transformer(data, volume=volume):
+                                return
+
+                            return volume_transformer
+
+                        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+                            info_dict = ydl.extract_info(url, download=False)
+                            video_title = info_dict.get("title", None)
+                            filename = f"{video_title}.mp3"
+                            ydl.download([url])
+
+                        logger.warning("Joining voice channel...")
+                        voice_client_bot = await channel.connect()
+                        voice_client_bot.play(discord.FFmpegPCMAudio(filename))
+
+                        if voice_client_bot.is_playing():
+                            # Adjust volume in real time
+                            voice_client_bot.source = discord.PCMVolumeTransformer(
+                                voice_client_bot.source, volume=VOLUME_LEVEL
+                            )
+
+                        while voice_client_bot.is_playing():
+                            await asyncio.sleep(1)
+
+                        await voice_client_bot.disconnect()
+
+                        os.remove(filename)
+
+                    except Exception as e:
+                        logger.critical(f"Error: {e}")
+                        await ctx.send(f"An error occurred: {e}")
+
+            else:
+                await ctx.send("You need to be in a voice chat to do that!")
+        except Exception as e:
+            logger.critical(f"Error in queue processing: {e}")
+            await ctx.send(f"An error occurred: {e}")
+        finally:
+            bogoyoutube_queue.task_done()
+            logger.warning("Finished processing and marked the queue task as done.")
+    is_youtube_worker_active = False
+    logger.warning("Queue is empty, marking youtube worker as inactive.")
+
+
+@bot.command()
 async def bogospeak(ctx, *, speechquestion):
     # Add request to the queue
     await bogospeak_queue.put((ctx, speechquestion))
     logger.warning(f"Added to queue: {speechquestion}")
+
+    while is_youtube_worker_active:
+        await asyncio.sleep(1)
 
     global is_speech_worker_active
     # Start processing the queue if the worker is not active
@@ -241,9 +339,6 @@ async def process_bogospeak_queue():
                     if voice_client.channel != channel:
                         await voice_client.disconnect()
                 else:
-                    # not in voice channel
-                    logger.warning("Joining voice channel...")
-
                     # logs question to terminal
                     logger.debug(f"{ctx.author}: {speechquestion}")
 
@@ -273,6 +368,7 @@ async def process_bogospeak_queue():
                             speechanswer, ELEVENLABS_VOICE, False
                         )
                         audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+                        logger.warning("Joining voice channel...")
                         voice_client_bot = await channel.connect()
                         voice_client_bot.play(audio_source)
 
