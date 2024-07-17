@@ -204,10 +204,10 @@ async def process_bogotext_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogotext_queue.task_done()
-            logger.debug(
+            logger.warning(
                 "Finished processing and marked the queue task as done.")
     is_text_worker_active = False
-    logger.debug("Queue is empty, marking text worker as inactive.")
+    logger.warning("Queue is empty, marking text worker as inactive.")
 
 
 @bot.command()
@@ -297,10 +297,10 @@ async def process_bogospeak_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogospeak_queue.task_done()
-            logger.debug(
+            logger.warning(
                 "Finished processing and marked the queue task as done.")
     is_speech_worker_active = False
-    logger.debug("Queue is empty, marking speech worker as inactive.")
+    logger.warning("Queue is empty, marking speech worker as inactive.")
 
 
 @bot.event
