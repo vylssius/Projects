@@ -283,6 +283,7 @@ async def process_bogoyoutube_queue():
                         await voice_client.disconnect()
                         voice_client = await channel.connect()
                 else:
+                    logger.warning("Joining voice channel...")
                     voice_client = await channel.connect()
 
                     try:
@@ -316,8 +317,6 @@ async def process_bogoyoutube_queue():
 
                             # ydl.download([url])
                             await asyncio.to_thread(ydl.download, [url])
-
-                        logger.warning("Joining voice channel...")
 
                         if not voice_client.is_connected():
                             voice_client = await channel.connect()
