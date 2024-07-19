@@ -235,7 +235,8 @@ async def process_bogotext_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogotext_queue.task_done()
-            logger.warning("Finished processing and marked the queue task as done.")
+            logger.warning(
+                "Finished processing and marked the queue task as done.")
     is_text_worker_active = False
     logger.warning("Queue is empty, marking text worker as inactive.")
 
@@ -273,7 +274,8 @@ async def process_bogoyoutube_queue():
         logger.warning(f"Processing from queue: {url}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(
+                    f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -283,9 +285,6 @@ async def process_bogoyoutube_queue():
                         await voice_client.disconnect()
                         voice_client = await channel.connect()
                 else:
-                    logger.warning("Joining voice channel...")
-                    voice_client = await channel.connect()
-
                     try:
                         ydl_opts = {
                             "format": "bestaudio/best",
@@ -313,13 +312,17 @@ async def process_bogoyoutube_queue():
 
                             # Check if Embedding is disabled
                             if not info_dict.get("url", None):
-                                raise Exception("Embedding is disabled for this video.")
+                                raise Exception(
+                                    "Embedding is disabled for this video.")
 
                             # ydl.download([url])
                             await asyncio.to_thread(ydl.download, [url])
 
                         if not voice_client.is_connected():
                             voice_client = await channel.connect()
+
+                        logger.warning("Joining voice channel...")
+                        voice_client = await channel.connect()
 
                         voice_client.play(discord.FFmpegPCMAudio(filename))
 
@@ -361,7 +364,8 @@ async def process_bogoyoutube_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogoyoutube_queue.task_done()
-            logger.warning("Finished processing and marked the queue task as done.")
+            logger.warning(
+                "Finished processing and marked the queue task as done.")
     is_youtube_worker_active = False
     logger.warning("Queue is empty, marking youtube worker as inactive.")
 
@@ -400,7 +404,8 @@ async def process_bogospeak_queue():
         logger.warning(f"Processing from queue: {speechquestion}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(
+                    f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -441,7 +446,8 @@ async def process_bogospeak_queue():
                         elevenlabs_output = elevenlabs_manager.text_to_audio(
                             speechanswer, ELEVENLABS_VOICE, False
                         )
-                        audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+                        audio_source = discord.FFmpegPCMAudio(
+                            elevenlabs_output)
                         logger.warning("Joining voice channel...")
                         voice_client_bot = await channel.connect()
                         voice_client_bot.play(audio_source)
@@ -463,7 +469,8 @@ async def process_bogospeak_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogospeak_queue.task_done()
-            logger.warning("Finished processing and marked the queue task as done.")
+            logger.warning(
+                "Finished processing and marked the queue task as done.")
     is_speech_worker_active = False
     logger.warning("Queue is empty, marking speech worker as inactive.")
 
