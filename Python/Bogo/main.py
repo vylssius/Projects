@@ -295,7 +295,7 @@ async def process_bogoyoutube_queue():
                                     "preferredquality": "192",
                                 }
                             ],
-                            "outtmpl": "%(title)s.%(ext)s",
+                            "outtmpl": "song.%(ext)s",
                         }
 
                         def transform(volume):
@@ -307,7 +307,7 @@ async def process_bogoyoutube_queue():
                         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                             info_dict = ydl.extract_info(url, download=False)
                             video_title = info_dict.get("title", None)
-                            filename = f"{video_title}.mp3"
+                            filename = "song.mp3"
                             await ctx.send(f"Now loading: {video_title}")
 
                             # Check if Embedding is disabled
