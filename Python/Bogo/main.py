@@ -293,7 +293,7 @@ async def process_bogoyoutube_queue():
                                     "preferredquality": "192",
                                 }
                             ],
-                            "outtmpl": "song.%(ext)s",
+                            "outtmpl": "%(title)s.%(ext)s",
                         }
 
                         def transform(volume):
@@ -309,8 +309,8 @@ async def process_bogoyoutube_queue():
                             await ctx.send(f"Now loading: {video_title}")
 
                             # Check if Embedding is disabled
-                            if not info_dict.get("url", None):
-                                raise Exception("Embedding is disabled for this video.")
+                            # if not info_dict.get("url", None):
+                            #    raise Exception("Embedding is disabled for this video.")
 
                             # ydl.download([url])
                             await asyncio.to_thread(ydl.download, [url])
