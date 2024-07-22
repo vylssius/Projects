@@ -6,6 +6,7 @@ import colorlog
 import asyncio
 import yt_dlp as youtube_dl
 
+from discord import app_commands
 from discord.ext import commands
 from openai import OpenAI
 from eleven_labs import ElevenLabsManager
@@ -162,17 +163,8 @@ FIRST_SYSTEM_MESSAGE = {
 }
 chat_history.append(FIRST_SYSTEM_MESSAGE)
 
-# Define intents
-intents = discord.Intents.default()
-intents.message_content = True
-intents.messages = True
-intents.guilds = True
-intents.dm_messages = True
-intents.members = True
-intents.voice_states = True
-
 # Set up the bot with the appropriate command prefix and intents
-bot = commands.Bot(command_prefix="/", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 
 ############################################################################################################
@@ -184,6 +176,13 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 async def on_ready():
     logger.info("Bogo logged in")
     logger.info(f"Bogo is ready with {len(bot.guilds)} guilds")
+
+    try:
+        synced = await bot.tree.sync()
+        logger.info(f"Synced {len(synced)} command(s)")
+    except Exception as e:
+        logger.critical(f"Error syncing commands: {e}")
+
     await load_chat_history()
     await backup_chat_history()
 
@@ -234,8 +233,7 @@ async def process_bogotext_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogotext_queue.task_done()
-            logger.warning(
-                "Finished processing and marked the queue task as done.")
+            logger.warning("Finished processing and marked the queue task as done.")
     is_text_worker_active = False
     logger.warning("Queue is empty, marking text worker as inactive.")
 
@@ -273,8 +271,7 @@ async def process_bogoyoutube_queue():
         logger.warning(f"Processing from queue: {url}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(
-                    f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -360,8 +357,7 @@ async def process_bogoyoutube_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogoyoutube_queue.task_done()
-            logger.warning(
-                "Finished processing and marked the queue task as done.")
+            logger.warning("Finished processing and marked the queue task as done.")
     is_youtube_worker_active = False
     logger.warning("Queue is empty, marking youtube worker as inactive.")
 
@@ -400,8 +396,7 @@ async def process_bogospeak_queue():
         logger.warning(f"Processing from queue: {speechquestion}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(
-                    f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -442,8 +437,7 @@ async def process_bogospeak_queue():
                         elevenlabs_output = elevenlabs_manager.text_to_audio(
                             speechanswer, ELEVENLABS_VOICE, False
                         )
-                        audio_source = discord.FFmpegPCMAudio(
-                            elevenlabs_output)
+                        audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
                         logger.warning("Joining voice channel...")
                         voice_client_bot = await channel.connect()
                         voice_client_bot.play(audio_source)
@@ -465,8 +459,7 @@ async def process_bogospeak_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogospeak_queue.task_done()
-            logger.warning(
-                "Finished processing and marked the queue task as done.")
+            logger.warning("Finished processing and marked the queue task as done.")
     is_speech_worker_active = False
     logger.warning("Queue is empty, marking speech worker as inactive.")
 
@@ -476,6 +469,14 @@ async def on_message(message):
     if message.channel.id != BOGO_CHANNEL_ID:
         return
     await bot.process_commands(message)
+
+
+@bot.tree.command(name="bogoping")
+async def bogoping(interaction: discord.Interaction):
+    latency = round(bot.latency * 1000)
+    await interaction.response.send_message(
+        f"Pong! Bogo latency: {latency}ms", ephemeral=False
+    )
 
 
 # Run the bot with the token
