@@ -7,7 +7,6 @@ import asyncio
 import yt_dlp as youtube_dl
 
 from discord.ext import commands
-from discord import FFmpegPCMAudio
 from openai import OpenAI
 from eleven_labs import ElevenLabsManager
 
@@ -184,8 +183,8 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 @bot.event
 async def on_ready():
     logger.info("Bogo logged in")
+    logger.info(f"Bogo is ready with {len(bot.guilds)} guilds")
     await load_chat_history()
-    logger.debug("\n" + PERSONALITY + "\n")
     await backup_chat_history()
 
 
