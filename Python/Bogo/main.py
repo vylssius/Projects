@@ -33,7 +33,7 @@ MAX_VIDEO_DURATION_SECONDS = 30 * 60
 
 is_speech_worker_active = False
 is_text_worker_active = False
-is_youtube_worker_active = False
+is_music_worker_active = False
 
 bogospeak_queue = asyncio.Queue()
 bogotext_queue = asyncio.Queue()
@@ -233,13 +233,14 @@ async def process_bogotext_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogotext_queue.task_done()
-            logger.warning("Finished processing and marked the queue task as done.")
+            logger.warning(
+                "Finished processing and marked the queue task as done.")
     is_text_worker_active = False
     logger.warning("Queue is empty, marking text worker as inactive.")
 
 
 @bot.command()
-async def bogoyoutube(ctx, *, query: str):
+async def bogomusic(ctx, *, query: str):
     url, title = None, None
     if is_url(query):
         url = query
@@ -257,21 +258,22 @@ async def bogoyoutube(ctx, *, query: str):
     while is_speech_worker_active:
         await asyncio.sleep(1)
 
-    global is_youtube_worker_active
+    global is_music_worker_active
     # Start processing the queue if the worker is not active
-    if not is_youtube_worker_active:
-        is_youtube_worker_active = True
-        await process_bogoyoutube_queue()
+    if not is_music_worker_active:
+        is_music_worker_active = True
+        await process_bogomusic_queue()
 
 
-async def process_bogoyoutube_queue():
-    global is_youtube_worker_active
+async def process_bogomusic_queue():
+    global is_music_worker_active
     while not bogoyoutube_queue.empty():
         ctx, url = await bogoyoutube_queue.get()
         logger.warning(f"Processing from queue: {url}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(
+                    f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -357,8 +359,9 @@ async def process_bogoyoutube_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogoyoutube_queue.task_done()
-            logger.warning("Finished processing and marked the queue task as done.")
-    is_youtube_worker_active = False
+            logger.warning(
+                "Finished processing and marked the queue task as done.")
+    is_music_worker_active = False
     logger.warning("Queue is empty, marking youtube worker as inactive.")
 
 
@@ -379,7 +382,7 @@ async def bogospeak(ctx, *, speechquestion):
     await bogospeak_queue.put((ctx, speechquestion))
     logger.warning(f"Added to queue: {speechquestion}")
 
-    while is_youtube_worker_active:
+    while is_music_worker_active:
         await asyncio.sleep(1)
 
     global is_speech_worker_active
@@ -396,7 +399,8 @@ async def process_bogospeak_queue():
         logger.warning(f"Processing from queue: {speechquestion}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
-                logger.warning(f"{ctx.author} is in a voice channel, proceeding...")
+                logger.warning(
+                    f"{ctx.author} is in a voice channel, proceeding...")
                 channel = ctx.author.voice.channel
                 voice_client = ctx.guild.voice_client
 
@@ -437,7 +441,8 @@ async def process_bogospeak_queue():
                         elevenlabs_output = elevenlabs_manager.text_to_audio(
                             speechanswer, ELEVENLABS_VOICE, False
                         )
-                        audio_source = discord.FFmpegPCMAudio(elevenlabs_output)
+                        audio_source = discord.FFmpegPCMAudio(
+                            elevenlabs_output)
                         logger.warning("Joining voice channel...")
                         voice_client_bot = await channel.connect()
                         voice_client_bot.play(audio_source)
@@ -459,7 +464,8 @@ async def process_bogospeak_queue():
             await ctx.send(f"An error occurred: {e}")
         finally:
             bogospeak_queue.task_done()
-            logger.warning("Finished processing and marked the queue task as done.")
+            logger.warning(
+                "Finished processing and marked the queue task as done.")
     is_speech_worker_active = False
     logger.warning("Queue is empty, marking speech worker as inactive.")
 
@@ -469,6 +475,9 @@ async def on_message(message):
     if message.channel.id != BOGO_CHANNEL_ID:
         return
     await bot.process_commands(message)
+
+
+# SLASH COMMANDS #
 
 
 @bot.tree.command(name="bogoping")
