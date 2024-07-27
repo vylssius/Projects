@@ -366,11 +366,13 @@ async def process_bogomusic_queue():
                                 voice_client.source, volume=VOLUME_LEVEL
                             )
 
+                        start_time = time.time()
                         while voice_client.is_playing():
-                            current_position = voice_client.source.position / 1000
-                            percent_complete = (
-                                current_position / duration) * 100
-                            progress_bar = "#" * int(percent_complete / 5)
+                            elapsed_time = time.time() - start_time
+                            percent_complete = (elapsed_time / duration) * 100
+                            progress_bar = "#" * int(
+                                percent_complete / 5
+                            )  # simple text-based progress bar
                             sys.stdout.write(
                                 f"\r[{progress_bar:<20}] {
                                     percent_complete:.2f}% complete"
