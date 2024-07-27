@@ -4,6 +4,9 @@ import discord
 import logging
 import colorlog
 import asyncio
+import subprocess
+import time
+import sys
 import yt_dlp as youtube_dl
 
 from discord import app_commands
@@ -239,6 +242,37 @@ async def process_bogotext_queue():
     logger.warning("Queue is empty, marking text worker as inactive.")
 
 
+def sanitize_filename(filename):
+    # Replace invalid characters with underscores
+    return re.sub(r'[<>:"/\\|?*]', "_", filename)
+
+
+def get_audio_duration(filename):
+    """Return the duration of the audio file in seconds."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                filename,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True,
+        )
+        duration = float(result.stdout.strip())
+        return duration
+    except Exception as e:
+        logger.critical(f"Error getting audio duration: {e}")
+        return 0
+
+
 @bot.command()
 async def bogomusic(ctx, *, query: str):
     url, title = None, None
@@ -252,7 +286,8 @@ async def bogomusic(ctx, *, query: str):
         return
 
     # Add request to the queue
-    await bogoyoutube_queue.put((ctx, url))
+    search_term_sanitized = sanitize_filename(query)
+    await bogoyoutube_queue.put((ctx, url, search_term_sanitized))
     logger.warning(f"Added to queue: {url}")
 
     while is_speech_worker_active:
@@ -268,7 +303,7 @@ async def bogomusic(ctx, *, query: str):
 async def process_bogomusic_queue():
     global is_music_worker_active
     while not bogoyoutube_queue.empty():
-        ctx, url = await bogoyoutube_queue.get()
+        ctx, url, search_term_sanitized = await bogoyoutube_queue.get()
         logger.warning(f"Processing from queue: {url}")
         try:
             if ctx.author.voice and ctx.author.voice.channel:
@@ -293,7 +328,7 @@ async def process_bogomusic_queue():
                                     "preferredquality": "192",
                                 }
                             ],
-                            "outtmpl": "%(title)s.%(ext)s",
+                            "outtmpl": f"{search_term_sanitized}.%(ext)s",
                         }
 
                         def transform(volume):
@@ -305,7 +340,8 @@ async def process_bogomusic_queue():
                         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                             info_dict = ydl.extract_info(url, download=False)
                             video_title = info_dict.get("title", None)
-                            filename = f"{video_title}.mp3"
+                            filename = f"{search_term_sanitized}.mp3"
+
                             await ctx.send(f"Now loading: {video_title}")
 
                             # Check if Embedding is disabled
@@ -314,6 +350,9 @@ async def process_bogomusic_queue():
 
                             # ydl.download([url])
                             await asyncio.to_thread(ydl.download, [url])
+
+                        duration = get_audio_duration(
+                            f"{search_term_sanitized}.mp3")
 
                         logger.warning("Joining voice channel...")
                         if not voice_client:
@@ -328,7 +367,19 @@ async def process_bogomusic_queue():
                             )
 
                         while voice_client.is_playing():
+                            current_position = voice_client.source.position / 1000
+                            percent_complete = (
+                                current_position / duration) * 100
+                            progress_bar = "#" * int(percent_complete / 5)
+                            sys.stdout.write(
+                                f"\r[{progress_bar:<20}] {
+                                    percent_complete:.2f}% complete"
+                            )
+                            sys.stdout.flush()
                             await asyncio.sleep(1)
+
+                        sys.stdout.write("\r" + " " * 30 + "\r")
+                        sys.stdout.flush()
 
                         # Remove the file asynchronously
                         await asyncio.to_thread(os.remove, filename)
