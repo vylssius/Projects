@@ -6,7 +6,7 @@ from openai_chat import OpenAiManager
 from eleven_labs import ElevenLabsManager
 from audio_player import AudioManager
 
-CHARACTER_NAME = "Sheogorath"
+CHARACTER_NAME = "Bogo"
 
 # Replace this with the name of whatever voice you have created on Elevenlabs
 ELEVENLABS_VOICE = CHARACTER_NAME
