@@ -6,9 +6,10 @@ from openai_chat import OpenAiManager
 from eleven_labs import ElevenLabsManager
 from audio_player import AudioManager
 
-CHARACTER_NAME = "CowboyBob"
+CHARACTER_NAME = "Sheogorath"
 
-ELEVENLABS_VOICE = CHARACTER_NAME  # Replace this with the name of whatever voice you have created on Elevenlabs
+# Replace this with the name of whatever voice you have created on Elevenlabs
+ELEVENLABS_VOICE = CHARACTER_NAME
 
 BACKUP_FILE = "ChatHistoryBackup.txt"
 PERSONALITY_FILE_PATH = "Personalities/" + CHARACTER_NAME + ".txt"
