@@ -178,7 +178,7 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 @bot.event
 async def on_ready():
     logger.info("Bogo logged in")
-    logger.info(f"Bogo is ready with {len(bot.guilds)} guilds")
+    logger.info(f"Bogo is ready with {len(bot.guilds)} guild(s)")
 
     try:
         synced = await bot.tree.sync()
@@ -188,6 +188,8 @@ async def on_ready():
 
     await load_chat_history()
     await backup_chat_history()
+
+    logger.info("Bogo is online and ready to go!")
 
 
 @bot.command()
